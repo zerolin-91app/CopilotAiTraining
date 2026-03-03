@@ -12,6 +12,14 @@ namespace ExpenseAPI.Controllers
     [Route("api/[controller]")]
     public class ExpenseController : ControllerBase
     {
+        private static readonly HashSet<string> AllowedCategories = new(StringComparer.Ordinal)
+        {
+            "食",
+            "衣",
+            "住",
+            "行"
+        };
+
         private readonly ExpenseContext _context;
 
         /// <summary>
@@ -30,7 +38,12 @@ namespace ExpenseAPI.Controllers
         [HttpGet]
         public async Task<IActionResult> GetExpenses()
         {
-            var expenses = await _context.Expenses.ToListAsync();
+            //// TODO，測試用，提交PR前記得要移除
+            var test = "ABC";
+            var expenses = await _context.Expenses
+                .AsNoTracking()
+                .ToListAsync();
+
             return Ok(expenses);
         }
 
@@ -42,10 +55,9 @@ namespace ExpenseAPI.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateExpense(Expense expense)
         {
-            var validationResult = ValidateExpense(expense);
-            if (!string.IsNullOrEmpty(validationResult))
+            if (!TryValidateExpense(expense, out var badRequestResult))
             {
-                return BadRequest(validationResult);
+                return badRequestResult;
             }
 
             _context.Expenses.Add(expense);
@@ -62,18 +74,22 @@ namespace ExpenseAPI.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateExpense(int id, Expense expense)
         {
+            if (expense is null)
+            {
+                return BadRequest("支出資料不可為空");
+            }
+
             if (id != expense.Id)
             {
                 return BadRequest("ID指定不一致");
             }
 
-            var validationResult = ValidateExpense(expense);
-            if (!string.IsNullOrEmpty(validationResult))
+            if (!TryValidateExpense(expense, out var badRequestResult))
             {
-                return BadRequest(validationResult);
+                return badRequestResult;
             }
 
-            var existingExpense = await _context.Expenses.FindAsync(expense.Id);
+            var existingExpense = await _context.Expenses.FindAsync(id);
             if (existingExpense == null)
             {
                 return NotFound("找不到指定的支出");
@@ -109,40 +125,61 @@ namespace ExpenseAPI.Controllers
         /// 驗證支出項目的資料。
         /// </summary>
         /// <param name="expense">要驗證的支出項目。</param>
-        /// <returns>驗證結果。如果驗證通過，返回空字符串。</returns>
-        private string ValidateExpense(Expense expense)
+        /// <param name="badRequestResult">若驗證失敗，回傳對應的 BadRequest。</param>
+        /// <returns>驗證是否通過。</returns>
+        private bool TryValidateExpense(Expense? expense, out IActionResult? badRequestResult)
         {
-            if (expense.Amount < 0)
+            badRequestResult = null;
+
+            if (expense is null)
             {
-                return "金額不能為負數";
+                badRequestResult = BadRequest("支出資料不可為空");
+                return false;
             }
 
-            if (expense.Category != "食" && expense.Category != "衣" && expense.Category != "住" && expense.Category != "行")
+            if (expense.Amount < 0)
             {
-                return "分類只能為[食、衣、住、行]";
+                badRequestResult = BadRequest("金額不能為負數");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(expense.Category) || !AllowedCategories.Contains(expense.Category))
+            {
+                badRequestResult = BadRequest("分類只能為[食、衣、住、行]");
+                return false;
             }
 
             if (expense.CreateDateTime > DateTime.Now.AddYears(-1))
             {
-                return "發生日期不能晚於 1 年前";
+                badRequestResult = BadRequest("發生日期不能晚於 1 年前");
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(expense.Title))
+            {
+                badRequestResult = BadRequest("標題不可為空");
+                return false;
             }
 
             if (expense.Title.Length > 100)
             {
-                return "標題不能超過 100 個字元";
+                badRequestResult = BadRequest("標題不能超過 100 個字元");
+                return false;
             }
 
             if (expense.Amount > 1000)
             {
-                return "金額不能超過 1000";
+                badRequestResult = BadRequest("金額不能超過 1000");
+                return false;
             }
 
             if (expense.Category.Length > 50)
             {
-                return "分類不能超過 50 個字元";
+                badRequestResult = BadRequest("分類不能超過 50 個字元");
+                return false;
             }
 
-            return string.Empty;
+            return true;
         }
     }
 }
