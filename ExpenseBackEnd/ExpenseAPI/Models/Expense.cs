@@ -20,7 +20,7 @@ namespace ExpenseAPI.Models
         /// </summary>
         [Required]
         [StringLength(100)]
-        public string Title { get; set; }
+        public string Title { get; set; } = string.Empty;
 
         /// <summary>
         /// 支出的金額。
@@ -40,7 +40,7 @@ namespace ExpenseAPI.Models
         /// </summary>
         [Required]
         [StringLength(50)]
-        public string Category { get; set; }
+        public string Category { get; set; } = string.Empty;
     }
 }
 

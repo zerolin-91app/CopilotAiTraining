@@ -22,20 +22,4 @@ namespace ExpenseAPI.Repostorys
         /// </summary>
         public DbSet<Expense> Expenses { get; set; }
     }
-
-
-
-    public class Startup
-    {
-        /// <summary>
-        /// 配置應用程式所需的服務。
-        /// </summary>
-        /// <param name="services">定義了一系列應用程式服務的集合。</param>
-        public void ConfigureServices(IServiceCollection services)
-        {
-            // 註冊ExpenseContext使用In-Memory資料庫
-            services.AddDbContext<ExpenseContext>(options =>
-                options.UseInMemoryDatabase("ExpensesDatabase"));
-        }
-    }
 }

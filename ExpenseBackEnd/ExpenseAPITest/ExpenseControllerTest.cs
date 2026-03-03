@@ -7,14 +7,14 @@ using ExpenseAPI.Models;
 namespace ExpenseAPITest
 {
     /// <summary>
-    /// // ³o¬O¥Î¨Ó´ú¸ÕExpenseControllerªº³æ¤¸´ú¸Õ
+    /// ExpenseController å–®å…ƒæ¸¬è©¦ã€‚
     /// </summary>
     [TestClass]
     public class ExpenseControllerTest
     {
         private ExpenseContext CreateDbContext()
         {
-            var databaseName = $"TestDatabase_{Guid.NewGuid()}"; // ½T«O¨C¦¸½Õ¥Î³£¨Ï¥Î°ß¤@ªº¼Æ¾Ú®w¦WºÙ
+            var databaseName = $"TestDatabase_{Guid.NewGuid()}";
             var options = new DbContextOptionsBuilder<ExpenseContext>()
                 .UseInMemoryDatabase(databaseName: databaseName)
                 .Options;
@@ -22,24 +22,34 @@ namespace ExpenseAPITest
             return dbContext;
         }
 
-        //´ú¸ÕGet¤èªk
         [TestMethod]
-        public void TestGet()
+        public async Task TestGet_ShouldReturnOkWithExpenses()
         {
             // Arrange
             var context = CreateDbContext();
+            context.Expenses.Add(new Expense
+            {
+                Title = "TestGet",
+                CreateDateTime = DateTime.Now.AddYears(-1),
+                Amount = 100,
+                Category = "é£Ÿ"
+            });
+            await context.SaveChangesAsync();
+
             var controller = new ExpenseController(context);
 
             // Act
-            var result = controller.GetExpenses().Result as OkObjectResult;
+            var result = await controller.GetExpenses() as OkObjectResult;
 
             // Assert
             Assert.IsNotNull(result);
+            var expenses = result.Value as IEnumerable<Expense>;
+            Assert.IsNotNull(expenses);
+            Assert.AreEqual(1, expenses.Count());
         }
 
-        //´ú¸ÕPost¤èªk
         [TestMethod]
-        public void TestPost()
+        public async Task TestPost_ShouldCreateExpense()
         {
             // Arrange
             var context = CreateDbContext();
@@ -50,19 +60,19 @@ namespace ExpenseAPITest
                 Title = "TestPost",
                 CreateDateTime = DateTime.Now.AddYears(-1),
                 Amount = 100,
-                Category = "¦í"
+                Category = "é£Ÿ"
             };
 
             // Act
-            var result = controller.CreateExpense(expense).Result as CreatedAtActionResult;
+            var result = await controller.CreateExpense(expense) as CreatedAtActionResult;
 
             // Assert
             Assert.IsNotNull(result);
+            Assert.AreEqual(1, await context.Expenses.CountAsync());
         }
 
-        //´ú¸ÕPut¤èªk
         [TestMethod]
-        public void TestUpdate()
+        public async Task TestUpdate_ShouldUpdateExpense()
         {
             // Arrange
             var context = CreateDbContext();
@@ -73,23 +83,25 @@ namespace ExpenseAPITest
                 Title = "TestUpdate",
                 CreateDateTime = DateTime.Now.AddYears(-1),
                 Amount = 100,
-                Category = "¦í"
+                Category = "é£Ÿ"
             };
             context.Expenses.Add(expense);
-            context.SaveChanges(); // ½T«O¼Æ¾Ú³Q´¡¤J¨ì¤º¦s¼Æ¾Ú®w¤¤
+            await context.SaveChangesAsync();
 
             // Act
-            expense.Amount = 200; // ­×§ï¼Æ¾Ú
-            var result = controller.UpdateExpense(1, expense).Result as OkObjectResult;
+            expense.Amount = 200;
+            var result = await controller.UpdateExpense(1, expense) as OkObjectResult;
 
             // Assert
             Assert.IsNotNull(result);
             Assert.IsNotNull(result.Value);
+            var updated = await context.Expenses.FindAsync(1);
+            Assert.IsNotNull(updated);
+            Assert.AreEqual(200, updated.Amount);
         }
 
-        //´ú¸ÕDelete¤èªk
         [TestMethod]
-        public void TestDelete()
+        public async Task TestDelete_ShouldRemoveExpense()
         {
             // Arrange
             var context = CreateDbContext();
@@ -100,22 +112,63 @@ namespace ExpenseAPITest
                 Title = "TestDelete",
                 CreateDateTime = DateTime.Now.AddYears(-1),
                 Amount = 100,
-                Category = "¦í"
+                Category = "é£Ÿ"
             };
             context.Expenses.Add(expense);
-            context.SaveChanges(); // ½T«O¼Æ¾Ú³Q´¡¤J¨ì¤º¦s¼Æ¾Ú®w¤¤
+            await context.SaveChangesAsync();
 
             // Act
-            var result = controller.DeleteExpense(1).Result as OkObjectResult;
-            
+            var result = await controller.DeleteExpense(1) as OkObjectResult;
+
             // Assert
             Assert.IsNotNull(result);
-            var deletedExpense = context.Expenses.Find(1);
+            var deletedExpense = await context.Expenses.FindAsync(1);
             Assert.IsNull(deletedExpense);
-
         }
 
+        [TestMethod]
+        public async Task TestPost_InvalidCategory_ShouldReturnBadRequest()
+        {
+            // Arrange
+            var context = CreateDbContext();
+            var controller = new ExpenseController(context);
+            var expense = new Expense
+            {
+                Title = "InvalidCategory",
+                CreateDateTime = DateTime.Now.AddYears(-1),
+                Amount = 100,
+                Category = "å…¶ä»–"
+            };
 
+            // Act
+            var result = await controller.CreateExpense(expense) as BadRequestObjectResult;
 
+            // Assert
+            Assert.IsNotNull(result);
+            Assert.AreEqual("åˆ†é¡åªèƒ½ç‚º[é£Ÿã€è¡£ã€ä½ã€è¡Œ]", result.Value);
+        }
+
+        [TestMethod]
+        public async Task TestUpdate_IdMismatch_ShouldReturnBadRequest()
+        {
+            // Arrange
+            var context = CreateDbContext();
+            var controller = new ExpenseController(context);
+            var expense = new Expense
+            {
+                Id = 2,
+                Title = "Mismatch",
+                CreateDateTime = DateTime.Now.AddYears(-1),
+                Amount = 100,
+                Category = "é£Ÿ"
+            };
+
+            // Act
+            var result = await controller.UpdateExpense(1, expense) as BadRequestObjectResult;
+
+            // Assert
+            Assert.IsNotNull(result);
+            Assert.AreEqual("IDæŒ‡å®šä¸ä¸€è‡´", result.Value);
+        }
     }
 }
