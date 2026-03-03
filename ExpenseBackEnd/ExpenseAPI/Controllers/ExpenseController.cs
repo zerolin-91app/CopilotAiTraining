@@ -12,6 +12,11 @@ namespace ExpenseAPI.Controllers
     [Route("api/[controller]")]
     public class ExpenseController : ControllerBase
     {
+        private const decimal MaxAmount = 1000m;
+        private const int MaxTitleLength = 100;
+        private const int MaxCategoryLength = 50;
+        private static readonly HashSet<string> ValidCategories = ["食", "衣", "住", "行"];
+
         private readonly ExpenseContext _context;
 
         /// <summary>
@@ -30,7 +35,10 @@ namespace ExpenseAPI.Controllers
         [HttpGet]
         public async Task<IActionResult> GetExpenses()
         {
-            var expenses = await _context.Expenses.ToListAsync();
+            var expenses = await _context.Expenses
+                .AsNoTracking()
+                .ToListAsync();
+
             return Ok(expenses);
         }
 
@@ -79,7 +87,11 @@ namespace ExpenseAPI.Controllers
                 return NotFound("找不到指定的支出");
             }
 
-            _context.Entry(existingExpense).CurrentValues.SetValues(expense);
+            existingExpense.Title = expense.Title;
+            existingExpense.Amount = expense.Amount;
+            existingExpense.CreateDateTime = expense.CreateDateTime;
+            existingExpense.Category = expense.Category;
+
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "支出更新成功" });
@@ -117,7 +129,7 @@ namespace ExpenseAPI.Controllers
                 return "金額不能為負數";
             }
 
-            if (expense.Category != "食" && expense.Category != "衣" && expense.Category != "住" && expense.Category != "行")
+            if (!ValidCategories.Contains(expense.Category))
             {
                 return "分類只能為[食、衣、住、行]";
             }
@@ -127,17 +139,17 @@ namespace ExpenseAPI.Controllers
                 return "發生日期不能晚於 1 年前";
             }
 
-            if (expense.Title.Length > 100)
+            if (expense.Title.Length > MaxTitleLength)
             {
                 return "標題不能超過 100 個字元";
             }
 
-            if (expense.Amount > 1000)
+            if (expense.Amount > MaxAmount)
             {
                 return "金額不能超過 1000";
             }
 
-            if (expense.Category.Length > 50)
+            if (expense.Category.Length > MaxCategoryLength)
             {
                 return "分類不能超過 50 個字元";
             }
